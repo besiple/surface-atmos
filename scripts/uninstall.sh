@@ -24,9 +24,10 @@ systemctl --user disable surface-atmos.service 2>/dev/null || true
 rm -f "$HOME/.config/systemd/user/surface-atmos.service"
 systemctl --user daemon-reload
 
-# Remove PipeWire filter config
+# Remove PipeWire filter config & WirePlumber Bluetooth profile
 rm -f "$HOME/.config/pipewire/pipewire.conf.d/surface-atmos.conf"
-systemctl --user restart pipewire
+rm -f "$HOME/.config/wireplumber/wireplumber.conf.d/50-bluez.conf"
+systemctl --user restart pipewire wireplumber
 
 # Remove binary
 sudo rm -f /usr/local/bin/surface-atmos

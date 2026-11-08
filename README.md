@@ -32,6 +32,8 @@ Under Windows, official Dolby Atmos drivers monitor the Surface posture sensor i
   - 🎨 **Studio Mode (`tablet`):** Desk table resonance damping (-2 dB at 234 Hz) and acoustic vent compensation (+4 dB on highs, expanded stereo width).
 - **Glitch-Free Smooth Crossfade:** When switching modes, parameters glide over 250ms via smoothstep S-curve interpolation without audio dropouts or clicks.
 - **PipeWire Native Filter-Chain:** Uses PipeWire's built-in SIMD biquad processors in the real-time audio thread for ultra-low latency and ~0.05% CPU usage.
+- **Automatic Session Priority:** Configured with priority 2000 in WirePlumber, guaranteeing that the Dolby Atmos DSP sink automatically takes precedence over raw uncalibrated hardware output.
+- **Clean Bluetooth Audio:** Bundles WirePlumber BlueZ profile rules to eliminate muddy mono "Handsfree" profiles for Bluetooth headphones, keeping high-fidelity stereo A2DP active.
 - **Desktop Notifications:** Displays a neat desktop notification when screen posture changes.
 - **CLI & Systemd:** Full command-line interface and automatic launch as a `systemd --user` service.
 

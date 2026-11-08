@@ -47,12 +47,15 @@ sudo cp "$SCRIPT_DIR/target/release/surface-atmos" /usr/local/bin/surface-atmos
 sudo chmod +x /usr/local/bin/surface-atmos
 echo -e "${GREEN}✓ Binary installed.${NC}"
 
-# 3. Configure PipeWire Filter-Chain
-echo -e "${BLUE}[4/5] Configuring PipeWire 20-band Dolby filter-chain...${NC}"
+# 3. Configure PipeWire Filter-Chain & WirePlumber
+echo -e "${BLUE}[4/5] Configuring PipeWire 20-band Dolby filter-chain & WirePlumber...${NC}"
 mkdir -p "$HOME/.config/pipewire/pipewire.conf.d"
 cp "$SCRIPT_DIR/pipewire/surface-atmos.conf" "$HOME/.config/pipewire/pipewire.conf.d/surface-atmos.conf"
 
-systemctl --user restart pipewire
+mkdir -p "$HOME/.config/wireplumber/wireplumber.conf.d"
+cp "$SCRIPT_DIR/wireplumber/50-bluez.conf" "$HOME/.config/wireplumber/wireplumber.conf.d/50-bluez.conf"
+
+systemctl --user restart pipewire wireplumber
 sleep 1
 
 # Find surface_atmos_sink and set as default
