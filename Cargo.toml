@@ -1,0 +1,18 @@
+[package]
+name = "surface-atmos"
+version = "0.1.0"
+edition = "2021"
+authors = ["besiple"]
+description = "Hardware-tuned Dolby Atmos DSP and adaptive posture driver for Microsoft Surface Laptop Studio on Linux"
+license = "MIT"
+repository = "https://github.com/besiple/surface-atmos"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+inotify = "0.11"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+colored = "3.0"
+log = "0.4"
+env_logger = "0.11"
