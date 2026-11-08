@@ -35,7 +35,7 @@ fn default_step_interval_ms() -> u64 {
 }
 
 fn default_notifications() -> bool {
-    true
+    false
 }
 
 fn default_sink_name() -> String {

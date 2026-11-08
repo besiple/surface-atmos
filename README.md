@@ -94,8 +94,8 @@ transition_duration_ms = 250
 # Slew step interval in milliseconds (default: 25)
 step_interval_ms = 25
 
-# Show desktop notification on posture change
-enable_notifications = true
+# Show desktop notification on posture change (default: false)
+enable_notifications = false
 
 # PipeWire sink name
 sink_name = "surface_atmos_sink"
