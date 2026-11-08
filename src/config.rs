@@ -1,14 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use crate::dsp::profile::EqProfile;
 use log::{debug, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
-    #[serde(default = "default_profile")]
-    pub profile: String,
-
     #[serde(default = "default_transition_ms")]
     pub transition_duration_ms: u64,
 
@@ -22,16 +18,12 @@ pub struct AppConfig {
     pub sink_name: String,
 }
 
-fn default_profile() -> String {
-    "balanced".to_string()
-}
-
 fn default_transition_ms() -> u64 {
-    250
+    200
 }
 
 fn default_step_interval_ms() -> u64 {
-    25
+    20
 }
 
 fn default_notifications() -> bool {
@@ -39,13 +31,12 @@ fn default_notifications() -> bool {
 }
 
 fn default_sink_name() -> String {
-    "surface_atmos_sink".to_string()
+    "surface_stage_compensator".to_string()
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            profile: default_profile(),
             transition_duration_ms: default_transition_ms(),
             step_interval_ms: default_step_interval_ms(),
             enable_notifications: default_notifications(),
@@ -81,9 +72,5 @@ impl AppConfig {
             }
         }
         default
-    }
-
-    pub fn eq_profile(&self) -> EqProfile {
-        EqProfile::parse(&self.profile)
     }
 }

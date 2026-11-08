@@ -10,15 +10,15 @@ mod posture;
 use config::AppConfig;
 use dsp::interpolator::Interpolator;
 use dsp::pipewire_ctl::PipeWireController;
-use dsp::profile::{EqProfile, PostureMode, StereoGains, FREQUENCIES, NUM_BANDS};
+use dsp::profile::{AcousticParameters, PostureMode};
 use posture::PostureSensor;
 
 #[derive(Parser)]
 #[command(
     name = "surface-atmos",
     author = "besiple",
-    version = "0.1.0",
-    about = "Dolby Atmos DSP and adaptive posture acoustics daemon for Microsoft Surface Laptop Studio"
+    version = "0.2.0",
+    about = "Adaptive Stage & Studio Acoustic Compensator for Microsoft Surface Laptop Studio"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -27,28 +27,23 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Run the daemon to watch physical posture and update DSP filters dynamically
+    /// Run the daemon to watch physical posture and update acoustic compensation dynamically
     Daemon,
-    /// Display current hardware posture, active EQ profile and PipeWire sink status
+    /// Display current hardware posture and active compensation parameters
     Status,
     /// Manually switch acoustic mode (laptop, stage, studio)
     Set {
         /// Mode name: 'laptop', 'stage' (slate), or 'studio' (tablet)
         mode: String,
     },
-    /// Switch EQ target profile (balanced, detailed, warm)
-    Profile {
-        /// Profile name: 'balanced', 'detailed', or 'warm'
-        name: String,
-    },
 }
 
 fn send_notification(mode: PostureMode) {
-    let title = format!("{} Surface Dolby Atmos", mode.icon());
-    let body = format!("Acoustic profile switched to: {}", mode.display_name());
+    let title = format!("{} Surface Audio Acoustics", mode.icon());
+    let body = format!("Acoustic compensation adapted to: {}", mode.display_name());
     let _ = Command::new("notify-send")
         .arg("-a")
-        .arg("Surface Atmos")
+        .arg("Surface Acoustics")
         .arg("-i")
         .arg("audio-speakers")
         .arg(&title)
@@ -65,13 +60,12 @@ fn main() {
     match cli.command {
         Some(Commands::Status) => cmd_status(&config),
         Some(Commands::Set { mode }) => cmd_set(&config, &mode),
-        Some(Commands::Profile { name }) => cmd_profile(&name),
         Some(Commands::Daemon) | None => cmd_daemon(config),
     }
 }
 
 fn cmd_status(config: &AppConfig) {
-    println!("{}", "=== Microsoft Surface Laptop Studio - Dolby Atmos Status ===".bold().cyan());
+    println!("{}", "=== Microsoft Surface Laptop Studio - Acoustic Compensator Status ===".bold().cyan());
     
     // Sensor status
     let sensor = PostureSensor::discover();
@@ -81,7 +75,7 @@ fn cmd_status(config: &AppConfig) {
             println!("  {} Posture Sensor: {} {}", "●".green(), mode.icon(), mode.display_name().bold());
         }
         None => {
-            println!("  {} Posture Sensor: {}", "●".red(), "Not detected (using fallback mode)");
+            println!("  {} Posture Sensor: {}", "●".red(), "Not detected");
         }
     }
 
@@ -89,76 +83,41 @@ fn cmd_status(config: &AppConfig) {
     let mut pw = PipeWireController::new(&config.sink_name);
     match pw.find_sink_node_id() {
         Some(id) => {
-            println!("  {} PipeWire Sink:  {} (Node ID: {})", "●".green(), config.sink_name.bold(), id);
+            println!("  {} Smart Filter:   {} (Node ID: {})", "●".green(), config.sink_name.bold(), id);
         }
         None => {
-            println!("  {} PipeWire Sink:  {} (Not found. Run install.sh to setup)", "●".red(), config.sink_name);
+            println!("  {} Smart Filter:   {} (Not found. Check pipewire.conf.d)", "●".red(), config.sink_name);
         }
     }
 
-    println!("  {} EQ Profile:     {}", "●".blue(), config.profile.to_uppercase().bold());
-    println!("  {} Crossfade Slew: {} ms", "●".blue(), config.transition_duration_ms);
-
-    println!("\n{}", "Active 20-band EQ Curve (Left / Right):".bold());
     let mode = sensor.as_ref().map(|s| s.read_mode()).unwrap_or(PostureMode::Laptop);
-    let gains = StereoGains::compute(mode, config.eq_profile());
-
-    for i in 0..NUM_BANDS {
-        let f_str = if FREQUENCIES[i] >= 1000.0 {
-            format!("{:>4.1}k", FREQUENCIES[i] / 1000.0)
-        } else {
-            format!("{:>4.0} ", FREQUENCIES[i])
-        };
-        println!(
-            "  [{:>2}] {:>5} Hz | L: {:>+6.2} dB | R: {:>+6.2} dB",
-            i, f_str, gains.left[i], gains.right[i]
-        );
-    }
+    let params = AcousticParameters::for_posture(mode);
+    println!("  {} High-Shelf Gain: {:+.1} dB (above 3000 Hz)", "●".blue(), params.gain_db);
+    println!("  {} Stereo Widening: {:.0}%", "●".blue(), params.stereo_widen * 100.0);
 }
 
 fn cmd_set(config: &AppConfig, mode_str: &str) {
     let mode = PostureMode::parse(mode_str);
     println!("Applying {} {}...", mode.icon(), mode.display_name().bold());
 
-    PipeWireController::ensure_hardware_sink_unity_gain();
     let mut pw = PipeWireController::new(&config.sink_name);
-    let gains = StereoGains::compute(mode, config.eq_profile());
+    let params = AcousticParameters::for_posture(mode);
 
-    match pw.apply_gains(&gains) {
+    match pw.apply_parameters(&params) {
         Ok(()) => {
-            println!("{}", "Acoustic DSP gains updated successfully!".green());
+            println!("{}", "Acoustic compensation updated successfully!".green());
             if config.enable_notifications {
                 send_notification(mode);
             }
         }
         Err(e) => {
-            eprintln!("{} Failed to apply gains: {}", "Error:".red().bold(), e);
+            eprintln!("{} Failed to apply parameters: {}", "Error:".red().bold(), e);
         }
     }
 }
 
-fn cmd_profile(profile_str: &str) {
-    let profile = EqProfile::parse(profile_str);
-    let mut config = AppConfig::load_or_default();
-    config.profile = format!("{:?}", profile).to_lowercase();
-
-    let path = AppConfig::config_path();
-    if let Ok(toml_str) = toml::to_string_pretty(&config) {
-        let _ = std::fs::write(&path, toml_str);
-        println!("Switched default EQ profile to: {}", config.profile.to_uppercase().bold().green());
-    }
-
-    // Apply to current posture
-    let sensor = PostureSensor::discover();
-    let mode = sensor.map(|s| s.read_mode()).unwrap_or(PostureMode::Laptop);
-    let gains = StereoGains::compute(mode, profile);
-
-    let mut pw = PipeWireController::new(&config.sink_name);
-    let _ = pw.apply_gains(&gains);
-}
-
 fn cmd_daemon(config: AppConfig) {
-    println!("{}", "Starting Surface Atmos Adaptive Acoustic Daemon...".bold().green());
+    println!("{}", "Starting Surface Acoustic Compensation Daemon...".bold().green());
 
     let sensor = match PostureSensor::discover() {
         Some(s) => s,
@@ -170,48 +129,42 @@ fn cmd_daemon(config: AppConfig) {
 
     let pw = Arc::new(Mutex::new(PipeWireController::new(&config.sink_name)));
     let interpolator = Interpolator::new(config.transition_duration_ms, config.step_interval_ms);
-    let current_gains = Arc::new(Mutex::new(StereoGains::compute(
-        sensor.read_mode(),
-        config.eq_profile(),
-    )));
-
-    // Ensure underlying hardware sink is at unity gain (100% / 0.00 dB)
-    PipeWireController::ensure_hardware_sink_unity_gain();
+    let current_params = Arc::new(Mutex::new(AcousticParameters::for_posture(sensor.read_mode())));
 
     // Initial application of profile
     {
         let mut pw_guard = pw.lock().unwrap();
-        let gains_guard = current_gains.lock().unwrap();
-        if let Err(e) = pw_guard.apply_gains(&gains_guard) {
-            eprintln!("Warning: Failed to apply initial gains: {}", e);
+        let params_guard = current_params.lock().unwrap();
+        if let Err(e) = pw_guard.apply_parameters(&params_guard) {
+            eprintln!("Warning: Failed to apply initial parameters: {}", e);
         } else {
             println!("Initial acoustic profile applied: {}", sensor.read_mode().display_name().cyan());
         }
     }
 
     let pw_clone = Arc::clone(&pw);
-    let gains_clone = Arc::clone(&current_gains);
+    let params_clone = Arc::clone(&current_params);
     let cfg = config.clone();
 
     sensor.watch(move |new_mode| {
         println!(">>> Posture shift detected: {} {}", new_mode.icon(), new_mode.display_name().bold());
         
-        let target_gains = StereoGains::compute(new_mode, cfg.eq_profile());
-        let from_gains = {
-            let g = gains_clone.lock().unwrap();
-            g.clone()
+        let target_params = AcousticParameters::for_posture(new_mode);
+        let from_params = {
+            let g = params_clone.lock().unwrap();
+            *g
         };
 
         let pw_inner = Arc::clone(&pw_clone);
-        interpolator.transition(&from_gains, &target_gains, |interpolated| {
+        interpolator.transition(&from_params, &target_params, |interpolated| {
             if let Ok(mut pw_guard) = pw_inner.lock() {
-                let _ = pw_guard.apply_gains(interpolated);
+                let _ = pw_guard.apply_parameters(interpolated);
             }
         });
 
         {
-            let mut g = gains_clone.lock().unwrap();
-            *g = target_gains;
+            let mut g = params_clone.lock().unwrap();
+            *g = target_params;
         }
 
         if cfg.enable_notifications {

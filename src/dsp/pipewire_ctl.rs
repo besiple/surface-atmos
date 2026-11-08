@@ -1,7 +1,7 @@
-// PipeWire control interface for dynamic filter-chain parameter updates
+// PipeWire control interface for dynamic smart-filter parameter updates
 
 use std::process::Command;
-use crate::dsp::profile::{StereoGains, NUM_BANDS};
+use crate::dsp::profile::AcousticParameters;
 use log::{debug, error, warn};
 
 pub struct PipeWireController {
@@ -17,36 +17,10 @@ impl PipeWireController {
         }
     }
 
-    /// Ensure underlying physical ALSA hardware output runs at unity gain (100% / 0.00 dB)
-    /// and all physical speaker amp pins on ALC274 are unmuted.
-    pub fn ensure_hardware_sink_unity_gain() {
-        let _ = Command::new("wpctl")
-            .args(["set-volume", "alsa_output.pci-0000_00_1f.3.analog-stereo", "1.0"])
-            .status();
-        let _ = Command::new("amixer")
-            .args(["-c", "0", "sset", "Master", "100%"])
-            .status();
-        let _ = Command::new("amixer")
-            .args(["-c", "0", "sset", "Speaker", "100%"])
-            .status();
-
-        // Unmute secondary physical amplifier pins on ALC274
-        for (nid, conn) in [("0x14", None), ("0x15", Some("0x1")), ("0x16", Some("0x1"))] {
-            if let Some(c) = conn {
-                let _ = Command::new("hda-verb").args(["/dev/snd/hwC0D0", nid, "0x701", c]).status();
-            }
-            let _ = Command::new("hda-verb").args(["/dev/snd/hwC0D0", nid, "0x707", "0x40"]).status();
-            let _ = Command::new("hda-verb").args(["/dev/snd/hwC0D0", nid, "0x3b0", "0x00"]).status();
-        }
-    }
-
     pub fn find_sink_node_id(&mut self) -> Option<u32> {
         let output = match Command::new("pw-dump").arg("Node").output() {
             Ok(out) if out.status.success() => out.stdout,
-            _ => {
-                debug!("pw-dump failed, falling back to pw-cli ls Node");
-                return self.find_node_id_pw_cli();
-            }
+            _ => return self.find_node_id_pw_cli(),
         };
 
         let json_val: Result<serde_json::Value, _> = serde_json::from_slice(&output);
@@ -98,29 +72,18 @@ impl PipeWireController {
         None
     }
 
-    pub fn apply_gains(&mut self, gains: &StereoGains) -> Result<(), String> {
+    pub fn apply_parameters(&mut self, params: &AcousticParameters) -> Result<(), String> {
         let node_id = match self.cached_node_id {
             Some(id) => id,
             None => self
                 .find_sink_node_id()
-                .ok_or_else(|| format!("Could not find PipeWire sink node '{}'", self.sink_node_name))?,
+                .ok_or_else(|| format!("Could not find PipeWire smart filter node '{}'", self.sink_node_name))?,
         };
 
-        // Construct PipeWire SPA pod parameters string for Props:
-        // '{ params = [ "eq_fl_00:Gain" 3.0 "eq_fr_00:Gain" 3.0 ... ] }'
-        let mut params_str = String::with_capacity(1024);
-        params_str.push_str("{ params = [ ");
-
-        for i in 0..NUM_BANDS {
-            params_str.push_str(&format!(
-                "\"eq_fl_{:02}:Gain\" {:.2} \"eq_fr_{:02}:Gain\" {:.2} ",
-                i, gains.left[i], i, gains.right[i]
-            ));
-        }
-
-        // Add stereo widening if supported by the adapter
-        params_str.push_str(&format!("\"channelmix.stereo-widen\" {:.2} ", gains.stereo_widen));
-        params_str.push_str("] }");
+        let params_str = format!(
+            "{{ params = [ \"eq_fl:Gain\" {:.2} \"eq_fr:Gain\" {:.2} \"channelmix.stereo-widen\" {:.2} ] }}",
+            params.gain_db, params.gain_db, params.stereo_widen
+        );
 
         let status = Command::new("pw-cli")
             .arg("s")
@@ -131,11 +94,10 @@ impl PipeWireController {
 
         match status {
             Ok(s) if s.success() => {
-                debug!("Successfully applied DSP gains to node {}", node_id);
+                debug!("Applied acoustic parameters to node {}: gain={:.2}dB widen={:.2}", node_id, params.gain_db, params.stereo_widen);
                 Ok(())
             }
             Ok(s) => {
-                // If failed, clear cache and retry once
                 warn!("pw-cli failed with status {}, retrying node discovery...", s);
                 self.cached_node_id = None;
                 if let Some(new_id) = self.find_sink_node_id() {

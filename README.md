@@ -1,47 +1,44 @@
-# 🎧 Surface Atmos
+# 🎧 Surface Acoustics
 
-**Hardware-tuned Dolby Atmos DSP reproduction and adaptive posture acoustic driver for Microsoft Surface Laptop Studio on Linux.**
+**Adaptive Stage & Studio Acoustic Compensator and Posture Control for Microsoft Surface Laptop Studio on Linux.**
 
 [![Platform](https://img.shields.io/badge/Platform-Arch%20Linux%20%7C%20Fedora%20%7C%20Ubuntu-blue.svg)](https://github.com/linux-surface/linux-surface)
 [![Rust](https://img.shields.io/badge/Language-Rust%202021-orange.svg)](https://www.rust-lang.org/)
-[![Audio](https://img.shields.io/badge/Audio-PipeWire%20Filter--Chain-green.svg)](https://pipewire.org/)
+[![Audio](https://img.shields.io/badge/Audio-PipeWire%20Smart%20Filter-green.svg)](https://pipewire.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
 
 ## 🌟 Overview
 
-The **Microsoft Surface Laptop Studio (1 & 2)** features a unique **Quad Omnisonic speaker system** (dual downward/keyboard-firing woofers + dual side-firing tweeters) and a flexible 3-position hinge:
-1. **Laptop Mode (`laptop`)**: Traditional clamshell, open keyboard.
-2. **Stage Mode (`slate`)**: The screen pulls forward over the keyboard onto magnetic latches.
-3. **Studio Mode (`tablet`)**: The screen folds completely flat as a drawing canvas.
+The **Microsoft Surface Laptop Studio (1 & 2)** features a unique hinge with three primary operating postures:
+1. **Laptop Mode (`laptop`)**: Standard clamshell with exposed keyboard.
+2. **Stage Mode (`slate`)**: The display pulls forward magnetically over the keyboard, resting right above the trackpad.
+3. **Studio Mode (`tablet`)**: The display folds flat into a digital drawing canvas.
 
-Under Windows, official Dolby Atmos drivers monitor the Surface posture sensor in real-time. When the glass screen covers the keyboard in **Stage** or **Studio** modes, it physically muffles the woofers. Dolby dynamically compensates for this acoustic obstruction by lifting attenuated treble, boosting vocal clarity, and widening the stereo soundstage.
+### The Acoustic Challenge
+The Surface Laptop Studio's **Quad Omnisonic** speaker system has tweeters located directly underneath the keyboard deck, firing upward through the keycaps. 
+In **Stage** and **Studio** modes, the heavy glass display physically covers the keyboard, creating a solid acoustic barrier that muffles high frequencies (dialogue, consonants, and speech clarity from 2.5 kHz to 10 kHz).
 
-**`surface-atmos` brings this full adaptive experience to Linux.**
+Under Windows, official Dolby Atmos drivers monitor the posture sensor and dynamically compensate for this physical obstruction.
+
+**`surface-atmos` brings this exact adaptive acoustic behavior to Linux — transparently and with zero volume loss.**
 
 ---
 
 ## ✨ Features
 
-- **20-band IEQ (Intelligent Equalizer):** Exact Dolby Atmos center frequencies (`47, 141, 234, 328, 469, 656, 844, 1031, 1313, 1688, 2250, 3000, 3750, 4688, 5813, 7125, 9000, 11250, 13875, 19688 Hz`).
-- **Asymmetric Hardware Speaker Correction:** Factory calibration curves for Left (`ch_00`) and Right (`ch_01`) channels extracted from official Windows DAX3 tuning files (`DEV_0274_SUBSYS_10EC121C`).
-- **Adaptive Posture Acoustic Compensation:**
-  - 💻 **Laptop:** Open, balanced acoustic profile.
-  - 🎬 **Stage Mode (`slate`):** High-frequency lift (+3.5 dB across 3–10 kHz) to penetrate through the screen covering the keyboard, plus dialogue enhancement.
-  - 🎨 **Studio Mode (`tablet`):** Desk table resonance damping (-2 dB at 234 Hz) and acoustic vent compensation (+4 dB on highs, expanded stereo width).
-- **Glitch-Free Smooth Crossfade:** When switching modes, parameters glide over 250ms via smoothstep S-curve interpolation without audio dropouts or clicks.
-- **PipeWire Native Filter-Chain:** Uses PipeWire's built-in SIMD biquad processors in the real-time audio thread for ultra-low latency and ~0.05% CPU usage.
-- **Automatic Session Priority:** Configured with priority 2000 in WirePlumber, guaranteeing that the Dolby Atmos DSP sink automatically takes precedence over raw uncalibrated hardware output.
-- **Clean Bluetooth Audio:** Bundles WirePlumber BlueZ profile rules to eliminate muddy mono "Handsfree" profiles for Bluetooth headphones, keeping high-fidelity stereo A2DP active.
-- **Desktop Notifications:** Displays a neat desktop notification when screen posture changes.
-- **CLI & Systemd:** Full command-line interface and automatic launch as a `systemd --user` service.
+- **Inline WirePlumber 0.5+ Smart Filter:** Intercepts audio directly at the hardware sink (`alsa_output.pci-0000_00_1f.3.analog-stereo`). **No duplicate virtual soundcards in GNOME Quick Settings, and no volume desynchronization bugs.**
+- **Transparent Laptop Mode:** In standard Laptop mode, the filter sits at `0.0 dB` (100% bit-perfect, zero latency, full dynamic range).
+- **Adaptive Stage Treble Lift (+4.5 dB):** When the display covers the keyboard in Stage mode, a high-shelf filter smoothly lifts frequencies above 3000 Hz by +4.5 dB and widens the stereo field (25%), cutting cleanly through the glass screen so speech and vocals remain crystal clear.
+- **Studio Mode Tuning (+5.0 dB):** Extra high-frequency lift and 30% stereo widening when laid completely flat.
+- **Glitch-Free Smooth Crossfade:** Transitions interpolate seamlessly over 200ms using smoothstep S-curves without pops or clicks.
+- **Stage Trackpad Fix:** Integrates the kernel `surface_aggregator_tabletsw tablet_mode_in_slate_state=0` fix so the trackpad remains fully functional when the screen covers the keyboard.
+- **Clean Bluetooth Audio:** Enforces high-fidelity stereo A2DP profiles for Bluetooth headphones, eliminating muddy 8 kHz mono "Handsfree" profiles.
 
 ---
 
 ## 🚀 Quick Installation
-
-Clone and install with one command:
 
 ```bash
 git clone https://github.com/besiple/surface-atmos.git
@@ -49,90 +46,24 @@ cd surface-atmos
 ./scripts/install.sh
 ```
 
-*(You will be prompted for `sudo` to install the binary to `/usr/local/bin/surface-atmos`).*
-
 ---
 
 ## 🛠️ Usage
 
 ### Check Status
-Display hardware sensor status, active posture mode, and the current 20-band gain curve:
-
 ```bash
 surface-atmos status
 ```
 
-### Manually Override Mode
-Manually test or force a specific mode:
-
+### Manually Test Mode
 ```bash
 surface-atmos set laptop
 surface-atmos set stage
 surface-atmos set studio
 ```
 
-### Switch EQ Profile Target
-Switch between official Dolby Atmos curve targets:
-
-```bash
-surface-atmos profile balanced   # Balanced default
-surface-atmos profile detailed   # Enhanced clarity & crisp highs
-surface-atmos profile warm       # Rich, relaxed sound
-```
-
----
-
-## ⚙️ Configuration
-
-Settings are saved in `~/.config/surface-atmos/config.toml`:
-
-```toml
-# Default EQ profile: "balanced", "detailed", or "warm"
-profile = "balanced"
-
-# Crossfade slew duration in milliseconds (default: 250)
-transition_duration_ms = 250
-
-# Slew step interval in milliseconds (default: 25)
-step_interval_ms = 25
-
-# Show desktop notification on posture change (default: false)
-enable_notifications = false
-
-# PipeWire sink name
-sink_name = "surface_atmos_sink"
-```
-
----
-
-## 📦 Service Management
-
-The daemon runs as a standard `systemd --user` unit:
-
-```bash
-# Check status
-systemctl --user status surface-atmos
-
-# View real-time logs
-journalctl --user -u surface-atmos -f
-
-# Restart daemon
-systemctl --user restart surface-atmos
-```
-
----
-
-## 🗑️ Uninstallation
-
-To cleanly remove `surface-atmos` and restore default audio settings:
-
-```bash
-cd surface-atmos
-./scripts/uninstall.sh
-```
-
 ---
 
 ## 📄 License
 
-MIT License. Copyright (c) 2026 besiple.
+MIT © [besiple](https://github.com/besiple)
