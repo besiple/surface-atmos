@@ -163,9 +163,9 @@ impl StereoGains {
             let l_raw = SPEAKER_OPT_LEFT[i] + ieq[i] + comp[i];
             let r_raw = SPEAKER_OPT_RIGHT[i] + ieq[i] + comp[i];
 
-            // Attenuate master offset by -6 dB to preserve headroom for Virtual Bass
-            left[i] = (l_raw - 6.0).clamp(-24.0, 12.0);
-            right[i] = (r_raw - 6.0).clamp(-24.0, 12.0);
+            // Dolby Atmos DAX3 makeup gain (+3.0 dB post-EQ loudness leveler compensation)
+            left[i] = (l_raw + 3.0).clamp(-24.0, 12.0);
+            right[i] = (r_raw + 3.0).clamp(-24.0, 12.0);
         }
 
         StereoGains {

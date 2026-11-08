@@ -120,6 +120,7 @@ fn cmd_set(config: &AppConfig, mode_str: &str) {
     let mode = PostureMode::parse(mode_str);
     println!("Applying {} {}...", mode.icon(), mode.display_name().bold());
 
+    PipeWireController::ensure_hardware_sink_unity_gain();
     let mut pw = PipeWireController::new(&config.sink_name);
     let gains = StereoGains::compute(mode, config.eq_profile());
 
@@ -173,6 +174,9 @@ fn cmd_daemon(config: AppConfig) {
         sensor.read_mode(),
         config.eq_profile(),
     )));
+
+    // Ensure underlying hardware sink is at unity gain (100% / 0.00 dB)
+    PipeWireController::ensure_hardware_sink_unity_gain();
 
     // Initial application of profile
     {

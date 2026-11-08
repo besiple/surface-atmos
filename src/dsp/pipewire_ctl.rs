@@ -17,6 +17,20 @@ impl PipeWireController {
         }
     }
 
+    /// Ensure underlying physical ALSA hardware output runs at unity gain (100% / 0.00 dB)
+    /// so the virtual sink volume slider controls full dynamic range.
+    pub fn ensure_hardware_sink_unity_gain() {
+        let _ = Command::new("wpctl")
+            .args(["set-volume", "alsa_output.pci-0000_00_1f.3.analog-stereo", "1.0"])
+            .status();
+        let _ = Command::new("amixer")
+            .args(["-c", "0", "sset", "Master", "100%"])
+            .status();
+        let _ = Command::new("amixer")
+            .args(["-c", "0", "sset", "Speaker", "100%"])
+            .status();
+    }
+
     pub fn find_sink_node_id(&mut self) -> Option<u32> {
         let output = match Command::new("pw-dump").arg("Node").output() {
             Ok(out) if out.status.success() => out.stdout,

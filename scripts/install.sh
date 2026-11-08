@@ -67,6 +67,12 @@ else
     echo -e "${CYAN}Note: PipeWire sink created, will be auto-selected on next audio playback.${NC}"
 fi
 
+# Ensure physical ALSA hardware output is set to 100% (0 dB unity gain) so virtual sink controls full dynamic range
+wpctl set-volume alsa_output.pci-0000_00_1f.3.analog-stereo 1.0 2>/dev/null || true
+amixer -c 0 sset Master 100% 2>/dev/null || true
+amixer -c 0 sset Speaker 100% 2>/dev/null || true
+echo -e "${GREEN}✓ ALSA hardware master output calibrated to unity gain (100% / 0 dB).${NC}"
+
 # 4. Enable systemd user service
 echo -e "${BLUE}[5/5] Enabling and starting surface-atmos systemd user service...${NC}"
 mkdir -p "$HOME/.config/systemd/user"
