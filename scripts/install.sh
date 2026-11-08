@@ -71,6 +71,18 @@ fi
 wpctl set-volume alsa_output.pci-0000_00_1f.3.analog-stereo 1.0 2>/dev/null || true
 amixer -c 0 sset Master 100% 2>/dev/null || true
 amixer -c 0 sset Speaker 100% 2>/dev/null || true
+
+# Unmute all physical Realtek ALC274 amplifier lines if hda-verb is available
+if command -v hda-verb &>/dev/null; then
+    sudo hda-verb /dev/snd/hwC0D0 0x16 0x701 0x1 2>/dev/null || true
+    sudo hda-verb /dev/snd/hwC0D0 0x16 0x707 0x40 2>/dev/null || true
+    sudo hda-verb /dev/snd/hwC0D0 0x16 0x3b0 0x00 2>/dev/null || true
+    sudo hda-verb /dev/snd/hwC0D0 0x15 0x701 0x1 2>/dev/null || true
+    sudo hda-verb /dev/snd/hwC0D0 0x15 0x707 0x40 2>/dev/null || true
+    sudo hda-verb /dev/snd/hwC0D0 0x15 0x3b0 0x00 2>/dev/null || true
+    sudo hda-verb /dev/snd/hwC0D0 0x14 0x707 0x40 2>/dev/null || true
+    sudo hda-verb /dev/snd/hwC0D0 0x14 0x3b0 0x00 2>/dev/null || true
+fi
 echo -e "${GREEN}✓ ALSA hardware master output calibrated to unity gain (100% / 0 dB).${NC}"
 
 # 4. Enable systemd user service

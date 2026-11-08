@@ -103,9 +103,9 @@ impl PostureMode {
 
     pub fn stereo_widen(&self) -> f32 {
         match self {
-            PostureMode::Laptop => 0.15,
-            PostureMode::Stage => 0.25,
-            PostureMode::Studio => 0.35,
+            PostureMode::Laptop => 0.35,
+            PostureMode::Stage => 0.40,
+            PostureMode::Studio => 0.45,
             PostureMode::LidClosed => 0.0,
         }
     }

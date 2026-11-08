@@ -18,7 +18,7 @@ impl PipeWireController {
     }
 
     /// Ensure underlying physical ALSA hardware output runs at unity gain (100% / 0.00 dB)
-    /// so the virtual sink volume slider controls full dynamic range.
+    /// and all physical speaker amp pins on ALC274 are unmuted.
     pub fn ensure_hardware_sink_unity_gain() {
         let _ = Command::new("wpctl")
             .args(["set-volume", "alsa_output.pci-0000_00_1f.3.analog-stereo", "1.0"])
@@ -29,6 +29,15 @@ impl PipeWireController {
         let _ = Command::new("amixer")
             .args(["-c", "0", "sset", "Speaker", "100%"])
             .status();
+
+        // Unmute secondary physical amplifier pins on ALC274
+        for (nid, conn) in [("0x14", None), ("0x15", Some("0x1")), ("0x16", Some("0x1"))] {
+            if let Some(c) = conn {
+                let _ = Command::new("hda-verb").args(["/dev/snd/hwC0D0", nid, "0x701", c]).status();
+            }
+            let _ = Command::new("hda-verb").args(["/dev/snd/hwC0D0", nid, "0x707", "0x40"]).status();
+            let _ = Command::new("hda-verb").args(["/dev/snd/hwC0D0", nid, "0x3b0", "0x00"]).status();
+        }
     }
 
     pub fn find_sink_node_id(&mut self) -> Option<u32> {
